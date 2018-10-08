@@ -120,23 +120,23 @@ namespace MiniPlayerWpf
         {
             bool result = false;
             DataTable table = musicDataSet.Tables["song"];
-            table.Rows.Remove(table.Rows.Find(songId));
 
-            // Remove from playlist_song every occurance of songId.
-            // Add rows to a separate list before deleting because we'll get an exception
-            // if we try to delete more than one row while looping through table.Rows
-
-            List<DataRow> rows = new List<DataRow>();
-            table = musicDataSet.Tables["playlist_song"];
-            foreach (DataRow row in table.Rows)
-                if (row["song_id"].ToString() == songId.ToString())
-                    rows.Add(row);
-
-            foreach (DataRow row in rows)
+            try
             {
-                row.Delete();
+                table.Rows.Remove(table.Rows.Find(songId));
+                List<DataRow> rows = new List<DataRow>();
+                table = musicDataSet.Tables["playlist_song"];
+                foreach (DataRow row in table.Rows)
+                    if (row["song_id"].ToString() == songId.ToString())
+                        rows.Add(row);
+
+                foreach (DataRow row in rows)
+                {
+                    row.Delete();
+                }
                 result = true;
             }
+            catch (Exception e) { }
             return result;
         }
 
