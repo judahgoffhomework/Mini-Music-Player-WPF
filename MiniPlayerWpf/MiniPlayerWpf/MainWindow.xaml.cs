@@ -17,7 +17,7 @@ namespace MiniPlayerWpf
     {
         private MusicLib musicLib;
 
-        private DataSet musicDataSet;
+        //private DataSet musicDataSet;
         private MediaPlayer mediaPlayer;
         private ObservableCollection<string> songIds;
 
@@ -30,34 +30,19 @@ namespace MiniPlayerWpf
         {
             InitializeComponent();
 
-            musicLib = new MusicLib();
 
             mediaPlayer = new MediaPlayer();
 
             try
             {
-                musicDataSet = new DataSet();
-                musicDataSet.ReadXmlSchema("music.xsd");
-                musicDataSet.ReadXml("music.xml");
+                musicLib = new MusicLib();
             }
             catch (Exception e)
             {
                 DisplayError("Error loading file: " + e.Message);
             }
 
-            PrintAllTables();
-
-            Console.WriteLine("Total songs = " + musicDataSet.Tables["song"].Rows.Count);
-
-            // Get a list of all song IDs
-            DataTable songs = musicDataSet.Tables["song"];
-            var ids = from row in songs.AsEnumerable()
-                      orderby row["id"]
-                      select row["id"].ToString();
-
-            // Put the ids in an ObservableCollection, which has Add & Remove methods for use later.
-            // The UI will update itself automatically if any changes are made to this collection.
-            songIds = new ObservableCollection<string>(ids);     
+            songIds = new ObservableCollection<string>(musicLib.SongIds);
 
             // Bind the song IDs to the combo box
             songIdComboBox.ItemsSource = songIds;
@@ -66,25 +51,6 @@ namespace MiniPlayerWpf
             if (songIdComboBox.Items.Count > 0)
             {
                 songIdComboBox.SelectedItem = songIdComboBox.Items[0];
-            }
-        }
-
-        private void PrintAllTables()
-        {
-            foreach (DataTable table in musicDataSet.Tables)
-            {
-                Console.WriteLine("Table name = " + table.TableName);
-                foreach (DataRow row in table.Rows)
-                {
-                    Console.WriteLine("Row:");
-                    int i = 0;
-                    foreach (Object item in row.ItemArray)
-                    {
-                        Console.WriteLine(" " + table.Columns[i].Caption + "=" + item);
-                        i++;
-                    }
-                }
-                Console.WriteLine();
             }
         }
         
@@ -129,7 +95,7 @@ namespace MiniPlayerWpf
 
         private void showDataButton_Click(object sender, RoutedEventArgs e)
         {
-            PrintAllTables();
+            musicLib.PrintAllTables();
         }
         
         private void songIdComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -139,17 +105,15 @@ namespace MiniPlayerWpf
             {
                 Console.WriteLine("Load song " + songIdComboBox.SelectedItem);
                 int songId = Convert.ToInt32(songIdComboBox.SelectedItem);
-                DataTable table = musicDataSet.Tables["song"];
-
-                // Only one row should be selected
-                foreach (DataRow row in table.Select("id=" + songId))
+                Song song = musicLib.GetSong(songId);
+                if (song != null)
                 {
-                    titleTextBox.Text = row["title"].ToString();
-                    artistTextBox.Text = row["artist"].ToString();
-                    albumTextBox.Text = row["album"].ToString();
-                    genreTextBox.Text = row["genre"].ToString();
-                    lengthTextBox.Text = row["length"].ToString();
-                    filenameTextBox.Text = row["filename"].ToString();                    
+                    titleTextBox.Text = song.Title.ToString();
+                    artistTextBox.Text = song.Artist.ToString();
+                    albumTextBox.Text = song.Album.ToString();
+                    genreTextBox.Text = song.Genre.ToString();
+                    lengthTextBox.Text = song.Length.ToString();
+                    filenameTextBox.Text = song.Filename.ToString();
                 }
             }
         }
@@ -214,19 +178,17 @@ namespace MiniPlayerWpf
         {
             string songId = songIdComboBox.SelectedItem.ToString();
             Console.WriteLine("Updating song " + songId);
-
-            DataTable table = musicDataSet.Tables["song"];
-
-            // Only one row should be selected
-            foreach (DataRow row in table.Select("id=" + songId))
+            Song song = new Song
             {
-                row["title"] = titleTextBox.Text;
-                row["artist"] = artistTextBox.Text;
-                row["album"] = albumTextBox.Text;
-                row["genre"] = genreTextBox.Text;
-                row["length"] = lengthTextBox.Text;
-                row["filename"] = filenameTextBox.Text;
-            }
+                Title = titleTextBox.Text,
+                Artist = artistTextBox.Text,
+                Album = albumTextBox.Text,
+                Filename = filenameTextBox.Text,
+                Length = lengthTextBox.Text,
+                Genre = genreTextBox.Text
+            };
+            musicLib.UpdateSong(Convert.ToInt32(songId), song);
+
         }
 
         private void UpdateCommand_CanExecute(object sender, CanExecuteRoutedEventArgs e)
@@ -242,24 +204,7 @@ namespace MiniPlayerWpf
                 string songId = songIdComboBox.SelectedItem.ToString();
                 Console.WriteLine("Deleting song " + songId);
 
-                // Search the primary key for the selected song and delete it from 
-                // the song table
-                DataTable table = musicDataSet.Tables["song"];
-                table.Rows.Remove(table.Rows.Find(songId));
-
-                // Remove from playlist_song every occurance of songId.
-                // Add rows to a separate list before deleting because we'll get an exception
-                // if we try to delete more than one row while looping through table.Rows
-
-                List<DataRow> rows = new List<DataRow>();
-                table = musicDataSet.Tables["playlist_song"];
-                foreach (DataRow row in table.Rows)
-                    if (row["song_id"].ToString() == songId.ToString())
-                        rows.Add(row);
-
-                foreach (DataRow row in rows)
-                    row.Delete();
-
+                musicLib.DeleteSong(Convert.ToInt32(songId));
                 // Remove the song from the combo box and select the next item
                 songIds.Remove(songIdComboBox.SelectedItem.ToString());
                 if (songIdComboBox.Items.Count > 0)
@@ -295,10 +240,7 @@ namespace MiniPlayerWpf
 
         private void SaveCommand_Executed(object sender, ExecutedRoutedEventArgs e)
         {
-            // Save music.xml in the same directory as the exe
-            string filename = "music.xml";
-            Console.WriteLine("Saving " + filename);
-            musicDataSet.WriteXml(filename);
+            musicLib.Save();
         }
     }
 }
